@@ -1,0 +1,134 @@
+import os
+import os.path as osp
+import argparse
+import torch
+import time
+
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+from PIL import Image
+from pdb import set_trace as st
+
+from torchvision import transforms
+
+from dataset.cub200 import CUB200Data
+from dataset.mit67 import MIT67Data
+from dataset.stanford_dog import SDog120Data
+from dataset.stanford_40 import Stanford40Data
+from dataset.flower102 import Flower102Data
+
+from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
+from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
+from model.vgg import vgg16_bn_dropout
+from model.vgg import fevgg16_bn
+
+from advertorch.attacks import LinfPGDAttack
+
+def advtest(model, loader, adv_samples_path, args):
+    model.eval()
+    model = model.cuda()
+
+    adv_data = torch.load(adv_samples_path)
+    adv_samples = adv_data['adv_samples']
+    adv_labels = adv_data['labels']
+
+    total = 0
+    top1_clean = 0
+    top1_adv = 0
+    adv_success = 0
+    adv_trial = 0
+    for i, (batch, label) in enumerate(loader):
+        batch, label = batch.to('cuda'), label.to('cuda')
+
+        start_idx = i * args.batch_size
+        end_idx = start_idx + batch.size(0)
+        adv_batch = adv_samples[start_idx:end_idx].to('cuda')
+
+        total += batch.size(0)
+        out_clean = model(batch)
+        out_adv = model(adv_batch)
+
+        _, pred_clean = out_clean.max(dim=1)
+        _, pred_adv = out_adv.max(dim=1)
+
+        clean_correct = pred_clean.eq(label)
+        adv_trial += int(clean_correct.sum().item())
+        adv_success += int(pred_adv[clean_correct].eq(label[clean_correct]).sum().detach().item())
+        top1_clean += int(pred_clean.eq(label).sum().detach().item())
+        top1_adv += int(pred_adv.eq(label).sum().detach().item())
+
+        print('{}/{}...'.format(i+1, len(loader)))
+
+    clean_top1 = float(top1_clean) / total * 100 if total > 0 else 0
+    adv_top1 = float(top1_adv) / total * 100 if total > 0 else 0
+    adv_sr = (float(adv_trial - adv_success) / adv_trial * 100) if adv_trial > 0 else 0
+
+    return clean_top1, adv_top1, adv_sr
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datapath", type=str, default='/data', help='path to the dataset')
+    parser.add_argument("--dataset", type=str, default='CUB200Data', help='Target dataset. Currently support: \{SDog120Data, CUB200Data, Stanford40Data, MIT67Data, Flower102Data\}')
+    parser.add_argument("--name", type=str, default='test')
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--checkpoint", type=str, default='')
+    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: \{resnet18, resnet50, resnet101, mbnetv2\}')
+    parser.add_argument("--teacher", default=None)
+    parser.add_argument("--output_dir", default="results")
+    parser.add_argument("--adv_samples_path", type=str, default='', help='Path to precomputed adversarial samples')
+
+    args = parser.parse_args()
+    if args.teacher is None:
+        args.teacher = args.network
+    args.output_dir = osp.join(
+        args.output_dir,
+        args.name
+    )
+    return args
+
+
+if __name__ == '__main__':
+    args = get_args()
+    print(args)
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    seed = 98
+
+    test_set = eval(args.dataset)(
+        args.datapath, False, transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ]), 
+        -1, seed, preload=False
+    )
+    
+    test_loader = torch.utils.data.DataLoader(
+        test_set,
+        batch_size=args.batch_size, shuffle=False,
+        num_workers=8, pin_memory=False)
+    
+    transferred_model = eval('{}_dropout'.format(args.network))(pretrained=False, dropout=args.dropout, num_classes=test_loader.dataset.num_classes)
+    checkpoint = torch.load(args.checkpoint)
+    # transferred_model.load_state_dict(checkpoint['state_dict'])
+    if 'state_dict' in checkpoint:
+        transferred_model.load_state_dict(checkpoint['state_dict'], strict=False)
+    else:
+        transferred_model.load_state_dict(checkpoint, strict=False)
+
+    pretrained_model = eval('fe{}'.format(args.teacher))(pretrained=True).eval().cuda()
+
+    clean_top1, adv_top1, adv_sr = advtest(transferred_model, test_loader, args.adv_samples_path, args)
+    output_file_path = os.path.join(args.output_dir, 'results.txt')
+    result_string = 'Clean Top-1: {:.2f} | Adv Top-1: {:.2f} | Attack Success Rate: {:.2f}\n'.format(clean_top1, adv_top1, adv_sr)
+    
+    with open(output_file_path, 'w') as f:
+        f.write(result_string)
+    print(f"结果已成功写入: {output_file_path}")    
+    

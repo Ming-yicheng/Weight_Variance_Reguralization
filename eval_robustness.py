@@ -1,0 +1,155 @@
+import os
+import os.path as osp
+import argparse
+import torch
+import time
+
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+from PIL import Image
+from pdb import set_trace as st
+
+from torchvision import transforms
+
+from dataset.cub200 import CUB200Data
+from dataset.mit67 import MIT67Data
+from dataset.stanford_dog import SDog120Data
+from dataset.stanford_40 import Stanford40Data
+from dataset.flower102 import Flower102Data
+
+from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
+from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
+from model.vgg import vgg16_bn_dropout
+from model.vgg import fevgg16_bn
+from model.mobilenet import mobilenet_v2_dropout
+from model.mobilenet import femobilenet_v2
+
+from advertorch.attacks import LinfPGDAttack
+
+def advtest(model, loader, adversary, args):
+    model.eval()
+    model = model.cuda()
+
+    total = 0
+    top1_clean = 0
+    top1_adv = 0
+    adv_success = 0
+    adv_trial = 0
+    for i, (batch, label) in enumerate(loader):
+        batch, label = batch.to('cuda'), label.to('cuda')
+
+        total += batch.size(0)
+        out_clean = model(batch)
+
+        if 'resnet' in args.network:
+            # ResNet 模型通常使用 .fc 作为分类器
+            y = torch.zeros(batch.shape[0], model.fc.in_features).cuda()
+        elif 'vgg' in args.network:
+            # VGG 模型使用 .classifier 作为分类器
+            y = torch.zeros(batch.shape[0], model.classifier[0].in_features).cuda()
+        elif 'mobilenet' in args.network:
+            # MobileNetV2 模型使用 .classifier[1] 作为最终线性层
+            y = torch.zeros(batch.shape[0], model.classifier[1].in_features).cuda()
+
+        y[:,0] = args.m
+        advbatch = adversary.perturb(batch, y)
+
+        out_adv = model(advbatch)
+
+        _, pred_clean = out_clean.max(dim=1)
+        _, pred_adv = out_adv.max(dim=1)
+
+        clean_correct = pred_clean.eq(label)
+        adv_trial += int(clean_correct.sum().item())
+        adv_success += int(pred_adv[clean_correct].eq(label[clean_correct]).sum().detach().item())
+        top1_clean += int(pred_clean.eq(label).sum().detach().item())
+        top1_adv += int(pred_adv.eq(label).sum().detach().item())
+
+        print('{}/{}...'.format(i+1, len(loader)))
+        # if i > 5:
+        #     break
+
+    clean_top1 = float(top1_clean) / total * 100 if total > 0 else 0
+    adv_top1 = float(top1_adv) / total * 100 if total > 0 else 0
+    adv_sr = (float(adv_trial - adv_success) / adv_trial * 100) if adv_trial > 0 else 0
+
+    return clean_top1, adv_top1, adv_sr
+
+
+def myloss(yhat, y):
+    return -((yhat[:,0]-y[:,0])**2 + 0.1*((yhat[:,1:]-y[:,1:])**2).mean(1)).mean()
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datapath", type=str, default='/data', help='path to the dataset')
+    parser.add_argument("--dataset", type=str, default='CUB200Data', help='Target dataset. Currently support: \{SDog120Data, CUB200Data, Stanford40Data, MIT67Data, Flower102Data\}')
+    parser.add_argument("--name", type=str, default='test')
+    parser.add_argument("--B", type=float, default=0.1, help='Attack budget')
+    parser.add_argument("--m", type=float, default=1000, help='Hyper-parameter for task-agnostic attack')
+    parser.add_argument("--pgd_iter", type=int, default=40)
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--checkpoint", type=str, default='')
+    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: \{resnet18, resnet50, resnet101, mbnetv2\}')
+    parser.add_argument("--teacher", default=None)
+    parser.add_argument("--output_dir", default="results")
+
+    args = parser.parse_args()
+    if args.teacher is None:
+        args.teacher = args.network
+    args.output_dir = osp.join(
+        args.output_dir,
+        args.name
+    )
+    return args
+
+
+if __name__ == '__main__':
+    args = get_args()
+    print(args)
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    seed = 98
+
+    test_set = eval(args.dataset)(
+        args.datapath, False, transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ]), 
+        -1, seed, preload=False
+    )
+    
+    test_loader = torch.utils.data.DataLoader(
+        test_set,
+        batch_size=args.batch_size, shuffle=False,
+        num_workers=8, pin_memory=False)
+    
+    transferred_model = eval('{}_dropout'.format(args.network))(pretrained=False, dropout=args.dropout, num_classes=test_loader.dataset.num_classes)
+    checkpoint = torch.load(args.checkpoint)
+    # transferred_model.load_state_dict(checkpoint['state_dict'])
+    transferred_model.load_state_dict(checkpoint['state_dict'], strict=False)
+    # transferred_model.load_state_dict(checkpoint, strict=False) 
+
+    pretrained_model = eval('fe{}'.format(args.teacher))(pretrained=True).eval().cuda()
+
+    adversary = LinfPGDAttack(
+            pretrained_model, loss_fn=myloss, eps=args.B,
+            nb_iter=args.pgd_iter, eps_iter=0.01, 
+            rand_init=True, clip_min=-2.2, clip_max=2.2,
+            targeted=False)
+
+    clean_top1, adv_top1, adv_sr = advtest(transferred_model, test_loader, adversary, args)
+    output_file_path = os.path.join(args.output_dir, 'results.txt')
+    result_string = 'Clean Top-1: {:.2f} | Adv Top-1: {:.2f} | Attack Success Rate: {:.2f}\n'.format(clean_top1, adv_top1, adv_sr)
+    
+    with open(output_file_path, 'w') as f:
+        f.write(result_string)
+    print(f"结果已成功写入: {output_file_path}")    
+    

@@ -1,0 +1,24 @@
+# Large data
+data/
+
+# Files/directories over 50MB
+visulize_weight/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Common large generated files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+
+# Environment / secrets
+.env
