@@ -8,7 +8,7 @@ DATASET_ABBRS=(mit67 cub200 flower102 stanford40 sdog120 visda)
 # coverages: neuron_coverage top_k_coverage strong_coverage
 # strategies: random deepxplore dlfuzz dlfuzzfirst
 
-for MODEL in mobilenet_v2
+for MODEL in resnet18
 do
 for dataset_idx in 1
 do

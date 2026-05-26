@@ -28,10 +28,6 @@ from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
-from model.mobilenet import mobilenet_v2_dropout
-from model.mobilenet import femobilenet_v2
 
 from coverage.my_neuron_coverage import MyNeuronCoverage
 from coverage.top_k_coverage import TopKNeuronCoverage
@@ -83,10 +79,6 @@ def log_coverage(model, loader, args, ):
     for name, module in intermedia_layers.items():
         weight = module.weight
         out_shape, in_shape = weight.shape[:2]
-        # --- MobileNet 深度卷积修正逻辑 ---
-        if isinstance(module, torch.nn.Conv2d) and module.groups == module.in_channels:
-            # 如果是深度卷积 (groups == in_channels)
-            in_shape = out_shape
         accumulate_coverage[name] = [np.zeros(in_shape), np.zeros(out_shape)] 
 
     for idx, (images, label) in enumerate(loader):
@@ -126,7 +118,7 @@ def get_args():
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0)
     parser.add_argument("--checkpoint", type=str, default='')
-    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: \{resnet18, resnet50, resnet101, mbnetv2\}')
+    parser.add_argument("--network", type=str, default='resnet18', help='ResNet architecture.')
     parser.add_argument("--teacher", default=None)
     parser.add_argument("--output_dir")
     

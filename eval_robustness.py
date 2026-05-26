@@ -21,12 +21,10 @@ from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
-from model.mobilenet import mobilenet_v2_dropout
-from model.mobilenet import femobilenet_v2
 
 from advertorch.attacks import LinfPGDAttack
+
+RESNET_CHOICES = ['resnet18', 'resnet34', 'resnet50', 'resnet101']
 
 def advtest(model, loader, adversary, args):
     model.eval()
@@ -46,12 +44,6 @@ def advtest(model, loader, adversary, args):
         if 'resnet' in args.network:
             # ResNet 模型通常使用 .fc 作为分类器
             y = torch.zeros(batch.shape[0], model.fc.in_features).cuda()
-        elif 'vgg' in args.network:
-            # VGG 模型使用 .classifier 作为分类器
-            y = torch.zeros(batch.shape[0], model.classifier[0].in_features).cuda()
-        elif 'mobilenet' in args.network:
-            # MobileNetV2 模型使用 .classifier[1] 作为最终线性层
-            y = torch.zeros(batch.shape[0], model.classifier[1].in_features).cuda()
 
         y[:,0] = args.m
         advbatch = adversary.perturb(batch, y)
@@ -93,7 +85,7 @@ def get_args():
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--checkpoint", type=str, default='')
-    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: \{resnet18, resnet50, resnet101, mbnetv2\}')
+    parser.add_argument("--network", type=str, default='resnet18', choices=RESNET_CHOICES, help='ResNet architecture.')
     parser.add_argument("--teacher", default=None)
     parser.add_argument("--output_dir", default="results")
 

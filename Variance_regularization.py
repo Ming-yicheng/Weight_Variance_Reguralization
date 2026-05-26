@@ -22,8 +22,6 @@ from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
 
 from eval_robustness import advtest, myloss
 from utils import *
@@ -41,7 +39,15 @@ class Variance_regularization(Finetuner):
         super(Variance_regularization, self).__init__(
             args, model, teacher, train_loader, test_loader
         )
-        self.outlier_layers_to_constrain = self._get_outlier_layers_by_variance()
+        self.wvr_mode = getattr(args, 'wvr_mode', 'global')
+        if self.wvr_mode not in ('global', 'outlier'):
+            raise ValueError(f"Unsupported wvr_mode: {self.wvr_mode}")
+
+        if self.wvr_mode == 'outlier':
+            self.outlier_layers_to_constrain = self._get_outlier_layers_by_variance()
+        else:
+            self.outlier_layers_to_constrain = set()
+            print("--- WVR mode: global, regularizing all convolutional layers ---")
 
     def _get_outlier_layers_by_variance(self, iqr_multiplier: float = 1.5) -> set:
 
@@ -72,6 +78,11 @@ class Variance_regularization(Finetuner):
         
         return outlier_layer_names
 
+    def _should_regularize_layer(self, name: str) -> bool:
+        if self.wvr_mode == 'global':
+            return True
+        return name in self.outlier_layers_to_constrain
+
     def train(self, ):
         model = self.model
         train_loader = self.train_loader
@@ -82,10 +93,9 @@ class Variance_regularization(Finetuner):
         args = self.args
         model = model.to('cuda')
         
-        if 'resnet' in args.network:
-            fc_module = self.model.fc
-        elif 'vgg' in args.network or 'mobilenet' in args.network:
-            fc_module = self.model.classifier
+        if 'resnet' not in args.network:
+            raise ValueError(f"Only ResNet architectures are supported, got: {args.network}")
+        fc_module = self.model.fc
         ignored_params = list(map(id, fc_module.parameters()))
         base_params = filter(lambda p: id(p) not in ignored_params,
                         self.model.parameters())
@@ -142,21 +152,17 @@ class Variance_regularization(Finetuner):
 
             if current_wvr_lambda != 0:
                 # 遍历模型中的所有卷积层模块
-                for module in model.modules():
+                for name, module in model.named_modules():
                     if isinstance(module, torch.nn.Conv2d):
+                        if not self._should_regularize_layer(name):
+                            continue
+
                         weight = module.weight
                         
                         if weight.requires_grad and weight.numel() > 1:
-                            # 重塑权重: [out_channels, in_channels, kernel_h, kernel_w] -> [out_channels, -1]
-                            weight_reshaped = weight.view(weight.size(0), -1)
-                            
-                            # 计算每个卷积核的方差 (沿dim=1计算)
-                            kernel_vars = torch.var(weight_reshaped, dim=1)
-                            
-                            # 排除无效的方差值并求平均
-                            valid_vars = kernel_vars[kernel_vars.isfinite()]
-                            if len(valid_vars) > 0:
-                                wvr_loss += torch.mean(valid_vars)
+                            layer_var = torch.var(weight.view(-1))
+                            if layer_var.isfinite():
+                                wvr_loss += layer_var
 
             # 3. 计算总损失
             loss = ce_loss + current_wvr_lambda * wvr_loss

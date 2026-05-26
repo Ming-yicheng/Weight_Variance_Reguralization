@@ -23,7 +23,7 @@ do
     DATASET_ABBR=${DATASET_ABBRS[i]}
 
     DIR=result/result_finetune
-    NAME=mobilenet_v2/${DATASET_ABBR}
+    NAME=resnet18/${DATASET_ABBR}
 
-    nohup python -u finetune.py  --datapath data/${DATASET}/ --iterations ${iter} --dataset ${DATASET_NAME} --name $NAME --batch_size 64 --lr ${lr} --network mobilenet_v2 --weight_decay ${wd}  --momentum ${mmt} --output_dir $DIR  
+    nohup python -u finetune.py  --datapath data/${DATASET}/ --iterations ${iter} --dataset ${DATASET_NAME} --name $NAME --batch_size 64 --lr ${lr} --network resnet18 --weight_decay ${wd}  --momentum ${mmt} --output_dir $DIR  
 done

@@ -1,1 +1,0 @@
-Clean Top-1: 76.04 | Adv Top-1: 73.96 | Attack Success Rate: 7.56

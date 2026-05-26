@@ -26,10 +26,6 @@ from dataset.stanford_40 import Stanford40Data
 from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import feresnet18, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
-from model.mobilenet import mobilenet_v2_dropout
-from model.mobilenet import femobilenet_v2
 
 from eval_robustness import advtest, myloss
 from utils import *

@@ -23,10 +23,6 @@ from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
-from model.mobilenet import mobilenet_v2_dropout
-from model.mobilenet import femobilenet_v2
 
 from eval_robustness import advtest, myloss
 from utils import *
@@ -120,10 +116,9 @@ class Finetuner(object):
         args = self.args
         model = model.to('cuda')
         
-        if 'resnet' in args.network:
-            fc_module = self.model.fc
-        elif 'vgg' in args.network or 'mobilenet' in args.network:
-            fc_module = self.model.classifier
+        if 'resnet' not in args.network:
+            raise ValueError(f"Only ResNet architectures are supported, got: {args.network}")
+        fc_module = self.model.fc
         ignored_params = list(map(id, fc_module.parameters()))
         base_params = filter(lambda p: id(p) not in ignored_params,
                         self.model.parameters())

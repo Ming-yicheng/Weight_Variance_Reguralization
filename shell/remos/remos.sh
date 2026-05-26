@@ -23,10 +23,10 @@ do
         DATASET_NAME=${DATASET_NAMES[i]}
         DATASET_ABBR=${DATASET_ABBRS[i]}
 
-        NAME=mobilenet/${DATASET_ABBR}
+        NAME=resnet18/${DATASET_ABBR}
         DIR=result/result_remos
 
-        nohup python finetune.py --iterations ${iter} --datapath data/${DATASET}/ --dataset ${DATASET_NAME} --name ${NAME} --batch_size 64 --lr ${lr} --network mobilenet_v2 --weight_decay ${wd} --momentum ${mmt} --output_dir ${DIR} --method remos --weight_total_ratio $total_ratio --weight_init_prune_ratio $total_ratio --prune_interval $iter --weight_ratio_per_prune 0 --nc_info_dir result/nc_profiling/${COVERAGE}_${DATASET_ABBR}_mobilenet_v2
+        nohup python finetune.py --iterations ${iter} --datapath data/${DATASET}/ --dataset ${DATASET_NAME} --name ${NAME} --batch_size 64 --lr ${lr} --network resnet18 --weight_decay ${wd} --momentum ${mmt} --output_dir ${DIR} --method remos --weight_total_ratio $total_ratio --weight_init_prune_ratio $total_ratio --prune_interval $iter --weight_ratio_per_prune 0 --nc_info_dir result/nc_profiling/${COVERAGE}_${DATASET_ABBR}_resnet18
 
         done
     done

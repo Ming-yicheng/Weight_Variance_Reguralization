@@ -21,10 +21,10 @@ from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
 
 from advertorch.attacks import LinfPGDAttack
+
+RESNET_CHOICES = ['resnet18', 'resnet34', 'resnet50', 'resnet101']
 
 def advtest(model, loader, adv_samples_path, args):
     model.eval()
@@ -75,7 +75,7 @@ def get_args():
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--checkpoint", type=str, default='')
-    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: \{resnet18, resnet50, resnet101, mbnetv2\}')
+    parser.add_argument("--network", type=str, default='resnet18', choices=RESNET_CHOICES, help='ResNet architecture.')
     parser.add_argument("--teacher", default=None)
     parser.add_argument("--output_dir", default="results")
     parser.add_argument("--adv_samples_path", type=str, default='', help='Path to precomputed adversarial samples')

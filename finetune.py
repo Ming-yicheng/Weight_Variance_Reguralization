@@ -24,10 +24,6 @@ from dataset.flower102 import Flower102Data
 
 from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
-from model.vgg import vgg16_bn_dropout
-from model.vgg import fevgg16_bn
-from model.mobilenet import mobilenet_v2_dropout
-from model.mobilenet import femobilenet_v2
 
 from eval_robustness import advtest, myloss
 from utils import *
@@ -36,6 +32,8 @@ from weight_pruner import WeightPruner
 from IPLA import IPLA
 from Variance_regularization import Variance_regularization
 from nc_prune.nc_weight_rank_pruner import NCWeightRankPruner
+
+RESNET_CHOICES = ['resnet18', 'resnet34', 'resnet50', 'resnet101']
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -52,7 +50,7 @@ def get_args():
     parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--dropout", type=float, default=0, help='Dropout rate for spatial dropout')
     parser.add_argument("--checkpoint", type=str, default='', help='Load a previously trained checkpoint')
-    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: \{resnet18, resnet50, resnet101, mbnetv2\}')
+    parser.add_argument("--network", type=str, default='resnet18', choices=RESNET_CHOICES, help='ResNet architecture.')
     parser.add_argument("--shot", type=int, default=-1, help='Number of training samples per class for the training dataset. -1 indicates using the full dataset.')
     parser.add_argument("--log", action='store_true', default=False, help='Redirect the output to log/args.name.log')
     parser.add_argument("--output_dir", default="results")
@@ -72,6 +70,14 @@ def get_args():
 
     # WVR
     parser.add_argument('--wvr_lambda', type=float, default=0.0, help='Regularization factor for Layer-wise Weight Variance loss (λ)')
+
+    parser.add_argument(
+        '--wvr_mode',
+        type=str,
+        default='global',
+        choices=['global', 'outlier'],
+        help='WVR layer selection mode: global regularizes all conv layers; outlier regularizes high-variance conv layers selected from the teacher model.',
+    )
 
     # IPLA
     parser.add_argument('--num-steps', type=int, default=15, help='迭代剪枝的次数')

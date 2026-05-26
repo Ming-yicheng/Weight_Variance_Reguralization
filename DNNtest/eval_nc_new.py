@@ -365,7 +365,7 @@ def get_args():
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--dropout", type=float, default=0)
     parser.add_argument("--checkpoint", type=str, default='')
-    parser.add_argument("--network", type=str, default='resnet18', help='Network architecture. Currently support: {resnet18, resnet50, resnet101, mbnetv2}')
+    parser.add_argument("--network", type=str, default='resnet18', help='ResNet architecture.')
     parser.add_argument("--teacher", default=None)
     parser.add_argument("--output_dir")
     

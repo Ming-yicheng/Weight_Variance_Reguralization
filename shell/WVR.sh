@@ -6,6 +6,7 @@ lr=1e-3
 wd=1e-4
 mmt=0
 wvr_lambda=1000
+wvr_mode=global
 
 
 DATASETS=(MIT_67 CUB_200_2011 Flower_102 stanford_dog stanford_40)
@@ -23,11 +24,11 @@ do
     DATASET_NAME=${DATASET_NAMES[i]}
     DATASET_ABBR=${DATASET_ABBRS[i]}
 
-    DIR=result/result_wvr_${wvr_lambda}
+    DIR=result/result_wvr_${wvr_mode}_${wvr_lambda}
     NAME=resnet18/${DATASET_ABBR}
 
     # LOG_FILE="${DIR}/${NAME}/training.log"
     # mkdir -p $(dirname ${LOG_FILE}) 
 
-    nohup python -u finetune.py  --datapath data/${DATASET}/ --iterations ${iter} --dataset ${DATASET_NAME} --name $NAME --batch_size 64 --lr ${lr} --network resnet18 --weight_decay ${wd} --method Variance_regularization --momentum ${mmt} --wvr_lambda ${wvr_lambda} --output_dir ${DIR}
+    nohup python -u finetune.py  --datapath data/${DATASET}/ --iterations ${iter} --dataset ${DATASET_NAME} --name $NAME --batch_size 64 --lr ${lr} --network resnet18 --weight_decay ${wd} --method Variance_regularization --momentum ${mmt} --wvr_lambda ${wvr_lambda} --wvr_mode ${wvr_mode} --output_dir ${DIR}
 done
