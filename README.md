@@ -34,7 +34,6 @@ numpy       2.3.3
 pandas      2.3.3
 pillow      11.3.0
 scipy       1.16.3
-numba       required by ReMoS coverage profiling
 ```
 
 Activate the environment with:
@@ -49,7 +48,7 @@ One possible setup is:
 conda create -n wvr python=3.11 -y
 conda activate wvr
 pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu130
-pip install advertorch==0.2.3 numpy==2.3.3 pandas==2.3.3 pillow==11.3.0 scipy==1.16.3 numba
+pip install advertorch==0.2.3 numpy==2.3.3 pandas==2.3.3 pillow==11.3.0 scipy==1.16.3 
 ```
 
 Notes:
@@ -57,10 +56,8 @@ Notes:
 - The training and attack scripts call `.cuda()`, so running full experiments requires a CUDA-capable PyTorch installation and an NVIDIA GPU.
 - If your CUDA driver does not support the `cu130` wheel, install the PyTorch/torchvision pair that matches your local CUDA runtime from the official PyTorch index.
 - `advertorch==0.2.3` is required for `LinfPGDAttack`, which is used by both evaluation and adversarial sample generation.
-- `numba` is required by the neuron-coverage metrics used in `shell/remos/nc_profile.sh`.
 - The dataset loaders are project-local and live under `dataset/`.
-- The multi-framework utilities inherited from the original coverage code mention TensorFlow, Keras, MXNet, GluonCV, OpenCV, and Adapt in unused helper modules. They are not required for reproducing the ReMoS main method used here.
-- `torchcontrib` is not required; unused imports have been removed.
+
 
 ## Data Layout
 
@@ -96,7 +93,6 @@ resnet50
 resnet101
 ```
 
-VGG and MobileNet support has been removed from the main project code.
 
 ## Training
 
