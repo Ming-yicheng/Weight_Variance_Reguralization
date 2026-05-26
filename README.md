@@ -23,13 +23,40 @@ The evaluation scripts may contain `renofeation` and `seam` as checkpoint names 
 
 ## Environment
 
-The original experiments use a conda environment named `wvr`.
+The original experiments use a conda environment named `wvr`. The current local environment used for this codebase is:
+
+```text
+python      3.11.14
+torch       2.9.1+cu130
+torchvision 0.24.1+cu130
+advertorch  0.2.3
+numpy       2.3.3
+pandas      2.3.3
+pillow      11.3.0
+scipy       1.16.3
+```
+
+Activate the environment with:
 
 ```bash
 conda activate wvr
 ```
 
-The main dependencies are PyTorch, torchvision, advertorch, pandas, and the dataset-specific utilities used by this project.
+One possible setup is:
+
+```bash
+conda create -n wvr python=3.11 -y
+conda activate wvr
+pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu130
+pip install advertorch==0.2.3 numpy==2.3.3 pandas==2.3.3 pillow==11.3.0 scipy==1.16.3
+```
+
+Notes:
+
+- The training and attack scripts call `.cuda()`, so running full experiments requires a CUDA-capable PyTorch installation and an NVIDIA GPU.
+- If your CUDA driver does not support the `cu130` wheel, install the PyTorch/torchvision pair that matches your local CUDA runtime from the official PyTorch index.
+- `advertorch==0.2.3` is required for `LinfPGDAttack`, which is used by both evaluation and adversarial sample generation.
+- The dataset loaders are project-local and live under `dataset/`.
 
 ## Data Layout
 
